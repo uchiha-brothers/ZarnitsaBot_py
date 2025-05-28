@@ -1,113 +1,160 @@
-from telegram import Update
+import json
+import random
+import string
+from telegram import Update, InputMediaPhoto, InputMediaVideo
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
+    MessageHandler,
     ContextTypes,
+    filters,
 )
 
-MESSAGES = {
-    "start": {
-        "ru": "Привет! Используйте команду:\n/compare cpu intel i7-12700 vs amd ryzen 7 5800x\nили\n/compare gpu nvidia rtx 3080 vs amd rx 6800",
-        "ar": "مرحبًا! استخدم الأمر:\n/compare cpu intel i7-12700 vs amd ryzen 7 5800x\nأو\n/compare gpu nvidia rtx 3080 vs amd rx 6800",
-        "en": "Hello! Use the command:\n/compare cpu intel i7-12700 vs amd ryzen 7 5800x\nor\n/compare gpu nvidia rtx 3080 vs amd rx 6800"
-    },
-    "error_format": {
-        "ru": "Пожалуйста, используйте формат:\n/compare cpu|gpu название1 vs название2",
-        "ar": "الرجاء استخدام الصيغة:\n/compare cpu|gpu اسم_المعالج_1 vs اسم_المعالج_2",
-        "en": "Please use the format:\n/compare cpu|gpu name1 vs name2"
-    },
-    "not_found": {
-        "ru": "Один или оба устройства не найдены в базе данных.",
-        "ar": "واحد أو كلا المعالجين غير موجودين في قاعدة البيانات.",
-        "en": "One or both devices not found in the database."
-    },
-    "lang_set": {
-        "ru": "Язык установлен на русский.",
-        "ar": "تم تعيين اللغة إلى العربية.",
-        "en": "Language set to English."
-    },
-    "lang_invalid": {
-        "ru": "Доступные языки: ru, ar, en",
-        "ar": "اللغات المتاحة: ru, ar, en",
-        "en": "Available languages: ru, ar, en"
-    },
-}
+# In-memory storage file or use JSON file
+STORAGE_FILE = "storage.json"
 
-DATABASE = {
-    "cpu": {
-        "intel i7-12700": {"cores": 12, "threads": 20, "base_clock": 2.1, "boost_clock": 4.9, "tdp": 65},
-        "amd ryzen 7 5800x": {"cores": 8, "threads": 16, "base_clock": 3.8, "boost_clock": 4.7, "tdp": 105},
-    },
-    "gpu": {
-        "nvidia rtx 3080": {"vram": "10GB", "boost_clock": 1.7, "tdp": 320},
-        "amd rx 6800": {"vram": "16GB", "boost_clock": 2.1, "tdp": 250},
-    }
-}
+def load_storage():
+    try:
+        with open(STORAGE_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
-async def send_message(update: Update, context: ContextTypes.DEFAULT_TYPE, key: str):
-    lang = context.user_data.get('lang', 'ru')  # هنا اللغة الافتراضية روسية
-    text = MESSAGES.get(key, {}).get(lang, "")
-    await update.message.reply_text(text)
+def save_storage(data):
+    with open(STORAGE_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def generate_random_id(length=10):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+# Telegram bot token and bot username (used for generating links)
+BOT_USERNAME = "tbcfilestoringbot"
+
+# Load storage on startup
+storage = load_storage()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await send_message(update, context, "start")
+    args = context.args
+    chat_id = update.effective_chat.id
 
-async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args:
-        lang = context.args[0].lower()
-        if lang in ['ru', 'ar', 'en']:
-            context.user_data['lang'] = lang
-            await update.message.reply_text(MESSAGES["lang_set"][lang])
+    if args:
+        random_id = args[0]
+        if random_id in storage:
+            data = storage[random_id]
+            file_id = data["file_id"]
+            caption = f"📎 File Name: {data['file_name']}\n📦 File Size: {data['file_size']}"
+            if "caption" in data:
+                caption += f"\n📝 Caption: {data['caption']}"
+
+            media_type = data["type"]
+
+            if media_type == "photo":
+                await context.bot.send_photo(chat_id=chat_id, photo=file_id, caption=caption)
+            elif media_type == "video":
+                await context.bot.send_video(chat_id=chat_id, video=file_id, caption=caption)
+            elif media_type == "audio":
+                await context.bot.send_audio(chat_id=chat_id, audio=file_id, caption=caption)
+            elif media_type == "document":
+                await context.bot.send_document(chat_id=chat_id, document=file_id, caption=caption)
+            elif media_type == "sticker":
+                # Stickers can't have captions
+                await context.bot.send_sticker(chat_id=chat_id, sticker=file_id)
+            else:
+                await update.message.reply_text("❌ Unsupported media type.")
         else:
-            await update.message.reply_text(MESSAGES["lang_invalid"]["ru"])
+            await update.message.reply_text("❌ Invalid file link or the file does not exist.")
     else:
-        await update.message.reply_text("Usage: /lang ru|ar|en")
+        welcome = (
+            "👋 Welcome to the Secure File Storage Bot!\n\n"
+            "📥 *Instructions:*\n"
+            "1. Send me any file, photo, video, audio, or sticker.\n"
+            "2. I will securely store it and generate a unique link for access.\n"
+            "3. Use the link to retrieve the file anytime.\n"
+            "🔒 Your files are stored securely and privately."
+        )
+        await update.message.reply_markdown(welcome)
 
-async def compare(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = context.user_data.get('lang', 'ru')
-    text = update.message.text
-    parts = text.split()
-    try:
-        vs_index = parts.index('vs')
-    except ValueError:
-        await send_message(update, context, "error_format")
-        return
+async def handle_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    chat_id = message.chat.id
 
-    category = parts[1].lower()
-    item1 = " ".join(parts[2:vs_index]).lower()
-    item2 = " ".join(parts[vs_index+1:]).lower()
+    allowed_types = ["document", "photo", "video", "audio", "sticker"]
 
-    if category not in DATABASE:
-        await send_message(update, context, "error_format")
-        return
+    # We'll check the types in priority order
+    for media_type in allowed_types:
+        media = getattr(message, media_type, None)
+        if media:
+            # For photo, it's a list of PhotoSize; take the highest resolution (last)
+            if media_type == "photo":
+                file_id = media[-1].file_id
+                file_name = "Photo"
+                file_size = media[-1].file_size
+            elif media_type == "sticker":
+                file_id = media.file_id
+                file_name = "Sticker"
+                file_size = 0
+            else:
+                file_id = media.file_id
+                file_name = getattr(media, "file_name", media_type.capitalize())
+                file_size = getattr(media, "file_size", 0)
 
-    data = DATABASE[category]
+            # Save caption only for photo and video
+            caption = message.caption if media_type in ["photo", "video"] else ""
 
-    if item1 not in data or item2 not in data:
-        await send_message(update, context, "not_found")
-        return
+            # Generate random ID
+            random_id = generate_random_id()
 
-    spec1 = data[item1]
-    spec2 = data[item2]
+            # Format file size
+            if file_size:
+                file_size_str = f"{round(file_size / 1024, 2)} KB"
+            else:
+                file_size_str = "Unknown"
 
-    if lang == 'ar':
-        response = f"مقارنة بين:\n1. {item1}\n{spec1}\n\n2. {item2}\n{spec2}"
-    elif lang == 'ru':
-        response = f"Сравнение между:\n1. {item1}\n{spec1}\n\n2. {item2}\n{spec2}"
-    else:
-        response = f"Comparison between:\n1. {item1}\n{spec1}\n\n2. {item2}\n{spec2}"
+            # Save to storage
+            storage[random_id] = {
+                "file_id": file_id,
+                "file_name": file_name,
+                "file_size": file_size_str,
+                "type": media_type,
+            }
+            if caption:
+                storage[random_id]["caption"] = caption
 
-    await update.message.reply_text(response)
+            save_storage(storage)
 
-if __name__ == '__main__':
+            file_link = f"https://t.me/{BOT_USERNAME}?start={random_id}"
+
+            msg = (
+                f"✅ *Your file has been securely saved!*\n\n"
+                f"📎 *File Name:* {file_name}\n"
+                f"📦 *Size:* {file_size_str}\n"
+            )
+            if caption:
+                msg += f"📝 *Caption:* {caption}\n"
+            msg += (
+                f"🔗 *Access Link:* [Click Here]({file_link})\n\n"
+                f"⭕ *Permanent Link:* {file_link}"
+            )
+
+            await update.message.reply_markdown(msg)
+            return
+
+    # If no media found
+    await update.message.reply_text("⚠️ Please send a valid file, photo, video, audio, or sticker.")
+
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⚠️ Invalid command. Use /start to begin.")
+
+if __name__ == "__main__":
     import os
-    TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+    TOKEN = os.getenv("TELEGRAM_TOKEN")  # Set your bot token in environment variable
 
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("lang", set_language))
-    app.add_handler(CommandHandler("compare", compare))
+    app.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), handle_files))
+    app.add_handler(MessageHandler(filters.COMMAND, unknown))  # catch unknown commands
 
-    print("Бот запущен...")
+    print("Bot is running...")
     app.run_polling()
