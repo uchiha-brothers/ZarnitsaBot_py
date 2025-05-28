@@ -152,7 +152,10 @@ if __name__ == '__main__':
     # التشغيل المحلي
     if os.getenv('RENDER'):  # إذا كان على Render
         bot.remove_webhook()
-        bot.set_webhook(url=os.getenv('WEBHOOK_URL') + TOKEN)
+        webhook_url = os.getenv('WEBHOOK_URL')
+if webhook_url is None:
+    raise ValueError("WEBHOOK_URL environment variable is not set!")
+bot.set_webhook(url=webhook_url + TOKEN)
         app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)))
     else:  # التشغيل المحلي
         bot.infinity_polling()
