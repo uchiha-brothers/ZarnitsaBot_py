@@ -2,7 +2,7 @@ import telebot
 import random
 from telebot import types
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "7935884095:AAHl3H4IjzPg2Yq0svNwJ42kslwgfzr-NIc"
 bot = telebot.TeleBot(TOKEN)
 
 # تخزين بيانات اللاعبين واللغة المختارة
