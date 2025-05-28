@@ -5,7 +5,7 @@ import random
 from flask import Flask, request  # للوضع السحابي
 
 # تهيئة البوت
-TOKEN = os.getenv('BOT_TOKEN') or "7935884095:AAHl3H4IjzPg2Yq0svNwJ42kslwgfzr-NIc"
+TOKEN = os.getenv('BOT_TOKEN') or "7805425893:AAHPMR5XqZIDWNkEU-hUuR8VMbhXbSCoJl4"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)  # للوضع السحابي
 
