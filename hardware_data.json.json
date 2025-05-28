@@ -1,0 +1,51 @@
+{
+    "cpus": [
+        {
+            "id": "1",
+            "name": "Intel Core i9-13900K",
+            "cores": "24 (8P + 16E)",
+            "clock": "3.0 - 5.8",
+            "price": "599",
+            "tdp": "125"
+        },
+        {
+            "id": "2",
+            "name": "AMD Ryzen 9 7950X",
+            "cores": "16",
+            "clock": "4.5 - 5.7",
+            "price": "699",
+            "tdp": "170"
+        },
+        {
+            "id": "3",
+            "name": "Intel Core i5-13600K",
+            "cores": "14 (6P + 8E)",
+            "clock": "3.5 - 5.1",
+            "price": "319",
+            "tdp": "125"
+        }
+    ],
+    "gpus": [
+        {
+            "id": "1",
+            "name": "NVIDIA RTX 4090",
+            "memory": "24",
+            "clock": "2235 - 2520",
+            "price": "1599"
+        },
+        {
+            "id": "2",
+            "name": "AMD RX 7900 XTX",
+            "memory": "24",
+            "clock": "1900 - 2500",
+            "price": "999"
+        },
+        {
+            "id": "3",
+            "name": "NVIDIA RTX 4070 Ti",
+            "memory": "12",
+            "clock": "2310 - 2610",
+            "price": "799"
+        }
+    ]
+}
