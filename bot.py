@@ -68,15 +68,14 @@ async def start_handler(client, message: Message):
             await message.reply("❌ Invalid or expired file link.")
     else:
         await message.reply_text(
-            "👋 Welcome to the Secure File Storage Bot!\n\n"
-            "📥 *Instructions:*\n"
-            "1. Send me any file, photo, video, audio, or sticker.\n"
-            "2. I will securely store it and generate a unique link for access.\n"
-            "3. Use the link to retrieve the file anytime.\n"
-            "🔒 Your files are stored securely and privately.",
-            quote=True,
-            parse_mode="markdown"
-        )
+    "👋 Welcome to the Secure File Storage Bot!\n\n"
+    "📥 Instructions:\n"
+    "1. Send me any file, photo, video, audio, or sticker.\n"
+    "2. I will securely store it and generate a unique link for access.\n"
+    "3. Use the link to retrieve the file anytime.\n"
+    "🔒 Your files are stored securely and privately.",
+    quote=True
+)
 
 @app.on_message(filters.private & filters.media)
 async def save_file(client, message: Message):
