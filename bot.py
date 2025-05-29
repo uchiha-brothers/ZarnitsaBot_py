@@ -1,36 +1,18 @@
-import os
 import json
 import random
 import string
-from flask import Flask, request
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from os import getenv
 
+# Config
 BOT_USERNAME = "tbcfilestoringbot"
-CHANNEL_ID = -1002646820169
 STORAGE_FILE = "storage.json"
-PORT = int(os.environ.get("PORT", 8080))
-WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")
+API_ID = int(getenv("API_ID"))
+API_HASH = getenv("API_HASH")
+BOT_TOKEN = getenv("BOT_TOKEN")
 
-app_flask = Flask(__name__)
-
-@app_flask.route("/")
-def index():
-    return "Bot is alive!", 200
-
-@app_flask.route("/webhook", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), app.bot)
-    # Process update asynchronously
-    app.bot.loop.create_task(app.update_queue.put(update))
-    return "OK", 200
-
+# Load and save functions
 def load_storage():
     try:
         with open(STORAGE_FILE, "r") as f:
@@ -45,49 +27,61 @@ def save_storage(data):
 def generate_random_id(length=10):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
+# Load data
 storage = load_storage()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-    chat_id = update.effective_chat.id
-    if args:
-        random_id = args[0]
+# Create bot
+app = Client("FileStoringBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+@app.on_message(filters.command("start") & filters.private)
+async def start_handler(client, message: Message):
+    args = message.text.split()
+    chat_id = message.chat.id
+
+    if len(args) > 1:
+        random_id = args[1]
         if random_id in storage:
             data = storage[random_id]
             file_id = data["file_id"]
             caption = f"📎 File Name: {data['file_name']}\n📦 File Size: {data['file_size']}"
             if "caption" in data:
                 caption += f"\n📝 Caption: {data['caption']}"
+
             media_type = data["type"]
-            if media_type == "photo":
-                await context.bot.send_photo(chat_id=chat_id, photo=file_id, caption=caption)
-            elif media_type == "video":
-                await context.bot.send_video(chat_id=chat_id, video=file_id, caption=caption)
-            elif media_type == "audio":
-                await context.bot.send_audio(chat_id=chat_id, audio=file_id, caption=caption)
-            elif media_type == "document":
-                await context.bot.send_document(chat_id=chat_id, document=file_id, caption=caption)
-            elif media_type == "sticker":
-                await context.bot.send_sticker(chat_id=chat_id, sticker=file_id)
-            else:
-                await update.message.reply_text("❌ Unsupported media type.")
+
+            try:
+                if media_type == "photo":
+                    await client.send_photo(chat_id, photo=file_id, caption=caption)
+                elif media_type == "video":
+                    await client.send_video(chat_id, video=file_id, caption=caption)
+                elif media_type == "audio":
+                    await client.send_audio(chat_id, audio=file_id, caption=caption)
+                elif media_type == "document":
+                    await client.send_document(chat_id, document=file_id, caption=caption)
+                elif media_type == "sticker":
+                    await client.send_sticker(chat_id, sticker=file_id)
+                else:
+                    await message.reply("❌ Unsupported media type.")
+            except Exception as e:
+                await message.reply("❌ Failed to send media.")
         else:
-            await update.message.reply_text("❌ Invalid file link or the file does not exist.")
+            await message.reply("❌ Invalid or expired file link.")
     else:
-        welcome = (
+        await message.reply_text(
             "👋 Welcome to the Secure File Storage Bot!\n\n"
             "📥 *Instructions:*\n"
             "1. Send me any file, photo, video, audio, or sticker.\n"
             "2. I will securely store it and generate a unique link for access.\n"
             "3. Use the link to retrieve the file anytime.\n"
-            "🔒 Your files are stored securely and privately."
+            "🔒 Your files are stored securely and privately.",
+            quote=True,
+            parse_mode="Markdown"
         )
-        await update.message.reply_markdown(welcome)
 
-async def handle_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    user = message.from_user
+@app.on_message(filters.private & filters.media)
+async def save_file(client, message: Message):
     allowed_types = ["document", "photo", "video", "audio", "sticker"]
+
     for media_type in allowed_types:
         media = getattr(message, media_type, None)
         if media:
@@ -103,9 +97,11 @@ async def handle_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 file_id = media.file_id
                 file_name = getattr(media, "file_name", media_type.capitalize())
                 file_size = getattr(media, "file_size", 0)
+
             caption = message.caption if media_type in ["photo", "video"] else ""
             random_id = generate_random_id()
             file_size_str = f"{round(file_size / 1024, 2)} KB" if file_size else "Unknown"
+
             storage[random_id] = {
                 "file_id": file_id,
                 "file_name": file_name,
@@ -114,8 +110,11 @@ async def handle_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             if caption:
                 storage[random_id]["caption"] = caption
+
             save_storage(storage)
+
             file_link = f"https://t.me/{BOT_USERNAME}?start={random_id}"
+
             msg = (
                 f"✅ *Your file has been securely saved!*\n\n"
                 f"📎 *File Name:* {file_name}\n"
@@ -123,49 +122,19 @@ async def handle_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             if caption:
                 msg += f"📝 *Caption:* {caption}\n"
-            msg += f"🔗 *Access Link:* [Click Here]({file_link})\n\n⭕ *Permanent Link:* {file_link}"
-            await update.message.reply_markdown(msg)
-            user_info = (
-                f"👤 Name: {user.full_name}\n"
-                f"🆔 ID: `{user.id}`\n"
-                f"🔗 Username: @{user.username if user.username else 'N/A'}"
+            msg += (
+                f"🔗 *Access Link:* [Click Here]({file_link})\n\n"
+                f"⭕ *Permanent Link:* {file_link}"
             )
-            await context.bot.send_message(chat_id=CHANNEL_ID, text=user_info)
-            if media_type == "photo":
-                await context.bot.send_photo(chat_id=CHANNEL_ID, photo=file_id, caption=caption)
-            elif media_type == "video":
-                await context.bot.send_video(chat_id=CHANNEL_ID, video=file_id, caption=caption)
-            elif media_type == "audio":
-                await context.bot.send_audio(chat_id=CHANNEL_ID, audio=file_id, caption=caption)
-            elif media_type == "document":
-                await context.bot.send_document(chat_id=CHANNEL_ID, document=file_id, caption=caption)
-            elif media_type == "sticker":
-                await context.bot.send_sticker(chat_id=CHANNEL_ID, sticker=file_id)
+
+            await message.reply_text(msg, parse_mode="Markdown", disable_web_page_preview=True)
             return
-    await update.message.reply_text("⚠️ Please send a valid file, photo, video, audio, or sticker.")
 
-async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚠️ Invalid command. Use /start to begin.")
+    await message.reply("⚠️ Please send a valid file, photo, video, audio, or sticker.")
 
-async def main():
-    TOKEN = os.getenv("TELEGRAM_TOKEN")
-    global app
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), handle_files))
-    app.add_handler(MessageHandler(filters.COMMAND, unknown))
-
-    await app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-    print("Webhook set, starting Flask server...")
+@app.on_message(filters.command & filters.private)
+async def unknown_command(client, message: Message):
+    await message.reply("⚠️ Invalid command. Use /start to begin.")
 
 if __name__ == "__main__":
-    import nest_asyncio
-    import asyncio
-
-    nest_asyncio.apply()
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
-
-    app_flask.run(host="0.0.0.0", port=PORT)
+    app.run()
