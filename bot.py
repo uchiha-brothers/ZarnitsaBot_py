@@ -170,14 +170,14 @@ async def main():
     bot_app.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), handle_files))
     bot_app.add_handler(MessageHandler(filters.COMMAND, unknown))
 
-    # Set webhook
+    # Set webhook (full URL)
     await bot_app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
 
-    # Run webhook server
+    # Run webhook server (remove webhook_path)
     await bot_app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_path="/webhook",
+        path="/webhook",  # ✅ Use 'path' instead of 'webhook_path'
         web_app=app_flask,
     )
 
