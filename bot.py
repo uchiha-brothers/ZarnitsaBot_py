@@ -85,9 +85,9 @@ async def save_file(client, message: Message):
         media = getattr(message, media_type, None)
         if media:
             if media_type == "photo":
-                file_id = media[-1].file_id
-                file_name = "Photo"
-                file_size = media[-1].file_size
+               file_id = media.file_id
+               file_name = "Photo"
+               file_size = media.file_size or 0
             elif media_type == "sticker":
                 file_id = media.file_id
                 file_name = "Sticker"
