@@ -170,14 +170,12 @@ async def main():
     bot_app.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), handle_files))
     bot_app.add_handler(MessageHandler(filters.COMMAND, unknown))
 
-    # Set the webhook to full URL
     await bot_app.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
 
-    # Start webhook server (only listen, port, web_app)
+    # Correct version-compatible webhook run (v20.3)
     await bot_app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        web_app=app_flask
     )
 
 if __name__ == "__main__":
