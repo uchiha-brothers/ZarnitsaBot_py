@@ -132,7 +132,7 @@ async def save_file(client, message: Message):
 
     await message.reply("⚠️ Please send a valid file, photo, video, audio, or sticker.")
 
-@app.on_message(filters.command & filters.private)
+@app.on_message(filters.command() & filters.private)
 async def unknown_command(client, message: Message):
     await message.reply("⚠️ Invalid command. Use /start to begin.")
 
