@@ -6,7 +6,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from os import getenv
 
 # Config
-BOT_USERNAME = "tbcfilestoringbot"
+BOT_USERNAME = "tbc_file_store_bot"
 STORAGE_FILE = "storage.json"
 API_ID = int(getenv("API_ID"))
 API_HASH = getenv("API_HASH")
@@ -75,7 +75,7 @@ async def start_handler(client, message: Message):
             "3. Use the link to retrieve the file anytime.\n"
             "🔒 Your files are stored securely and privately.",
             quote=True,
-            parse_mode="Markdown"
+            parse_mode="markdown"
         )
 
 @app.on_message(filters.private & filters.media)
